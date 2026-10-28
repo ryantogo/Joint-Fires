@@ -4,6 +4,8 @@ Everything logs to `BepInEx/LogOutput.log` with the prefixes `[Net]`, `[Server]`
 
 ## Phase 2: strike missions and jamming (v0.2.0)
 
+For a full single-player walkthrough with a results table, see [testing-singleplayer.md](testing-singleplayer.md).
+
 ### S1. Single player
 1. Host a mission with friendly **missile ships** and/or **ground missile launchers** (cruise-missile or anti-ship trucks), and enemy targets in their range. The mission editor helps.
 2. Expect in the log: `Joint Fires 0.2.0 loaded`, and on mission start `[Strike] Strike planning allowed for you on this server`.

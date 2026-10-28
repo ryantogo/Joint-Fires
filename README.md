@@ -9,7 +9,7 @@ A BepInEx plugin for [Nuclear Option](https://store.steampowered.com/app/2168680
   - **Datalink:** realtime waypoints and retargeting for guided weapons in flight, with the EW-25 Medusa as a C2 relay.
   - **JF Multicrew:** a small add-on that lets [EW-25 Medusa Multi-Crew](https://github.com/ryantogo/EW-25-Medusa-MC) crews plan strikes and adds a crew-seat whitelist.
 
-**Status: in development, not yet tested in-game.** See [docs/plan.md](docs/plan.md) for the design and phases, and [docs/testing.md](docs/testing.md) for test steps.
+**Status: in development, not yet tested in-game.** See [docs/plan.md](docs/plan.md) for the design and phases, [docs/testing.md](docs/testing.md) for test steps, and [docs/testing-singleplayer.md](docs/testing-singleplayer.md) for a single-player walkthrough.
 
 ## Strike missions
 
