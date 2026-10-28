@@ -1,4 +1,5 @@
 using BepInEx;
+using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
 using JointFires.Net;
@@ -12,7 +13,7 @@ namespace JointFires
     {
         public const string Guid = "com.ryantogo.jointfires";
         public const string Name = "Joint Fires";
-        public const string Version = "0.0.1";
+        public const string Version = "0.1.0";
 
         private const string MultiCrewGuid = "com.ryantogo.medusamulticrew";
         // MultiCrewApi members this build calls.
@@ -20,6 +21,9 @@ namespace JointFires
 
         internal static ManualLogSource Log;
         internal static Plugin Instance;
+
+        internal static ConfigEntry<bool> ShowOnMap;
+        internal static ConfigEntry<bool> ShowOnHud;
 
         private Harmony harmony;
         private bool loggedUpdateError;
@@ -35,6 +39,11 @@ namespace JointFires
                 enabled = false;
                 return;
             }
+
+            ShowOnMap = Config.Bind("Sensors", "ShowOnMap", true,
+                "Show which friendly sensors detect a target in the map tooltip and the selected-target box.");
+            ShowOnHud = Config.Bind("Sensors", "ShowOnHud", true,
+                "Show the detecting sensors under the primary target's info on the cockpit HUD.");
 
             harmony = new Harmony(Guid);
             harmony.PatchAll(typeof(Plugin).Assembly);

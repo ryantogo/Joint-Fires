@@ -120,7 +120,7 @@ The user decided:
 
 ## Phases
 0. ✅ **MC 0.5.0 API and join hook** (`MultiCrewApi`), then this repo's skeleton and the JF hello/net layer (`src/Net/JfNet.cs`).
-1. **Sensor attribution.** Pre-release JF 0.1.0.
+1. ✅ **Sensor attribution** (code done in 0.1.0, untested in-game). `src/Sensors/`: capture patches, `SensorServer` table and query, `SensorClient` cache and display patches. Remote players' laser/RWR/MAW reports show as "Reported", since the host can't see which of their sensors sent them.
 2. **Whitelist.** Covers MC seats, plus switches for later features.
 3. **Datalink link model,** the map link state, and SARH relay.
 4. **Waypoints and retargeting.**

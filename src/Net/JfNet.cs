@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using JointFires.Sensors;
 using Mirage;
 using NuclearOption.Networking;
 using UnityEngine;
@@ -50,6 +51,7 @@ namespace JointFires.Net
                 {
                     RegisterServer(server);
                 }
+                SensorServer.Tick();
             }
             else if (serverHandler != null)
             {
@@ -83,6 +85,7 @@ namespace JointFires.Net
         {
             serverHandler = null;
             modded.Clear();
+            SensorServer.Reset();
         }
 
         private static void ResetClient()
@@ -90,6 +93,7 @@ namespace JointFires.Net
             clientHandler = null;
             helloSent = false;
             ServerHasMod = false;
+            SensorClient.Reset();
         }
 
         // ---- client -> server ----
@@ -187,6 +191,7 @@ namespace JointFires.Net
             serverHandler = server.MessageHandler;
 
             serverHandler.RegisterHandler<JfHelloMsg>(Guard<JfHelloMsg>(OnHello), false);
+            serverHandler.RegisterHandler<SensorQueryMsg>(Guard<SensorQueryMsg>(SensorServer.OnQuery), false);
 
             // The server object lives across sessions, so hook its disconnect event only once.
             if (!ReferenceEquals(disconnectHookedServer, server))
@@ -204,6 +209,7 @@ namespace JointFires.Net
             clientHandler = client.MessageHandler;
 
             clientHandler.RegisterHandler<JfHelloAckMsg>(Guard<JfHelloAckMsg>(OnHelloAck), false);
+            clientHandler.RegisterHandler<SensorReportMsg>(Guard<SensorReportMsg>(SensorClient.OnReport), false);
             Plugin.Log.LogInfo("[Net] Client handlers registered");
         }
 
@@ -231,6 +237,7 @@ namespace JointFires.Net
             if (serverHandler != null)
             {
                 modded.Remove(player);
+                SensorServer.Forget(player);
             }
         }
 

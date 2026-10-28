@@ -7,7 +7,11 @@ A BepInEx plugin for [Nuclear Option](https://store.steampowered.com/app/2168680
 - **Strike missions.** EW-25 multi-crews plan time-on-target strikes with friendly AI launchers, artillery and (later) aircraft.
 - **Server whitelist.** Limits who can crew a Medusa and who can plan strikes.
 
-**Status: in development.** Only the networking handshake exists so far. See [docs/plan.md](docs/plan.md) for the design and phases.
+**Status: in development.** Sensor information is written (phase 1) but not yet tested in-game; the rest is planned. See [docs/plan.md](docs/plan.md) for the design and phases, and [docs/testing.md](docs/testing.md) for test steps.
+
+## Sensor information
+
+Hover or select an enemy on the map, or target it in the cockpit, to see which friendly units detect it: `Radar: EW-25 Medusa (Ryan), Visual/IR: AFV-8`. When nobody sees it any more you get who saw it last and how long ago. The host records detections; your game asks only about targets on your screen, and only for your own faction's tracked targets. Turn the map or HUD line off with `Sensors.ShowOnMap` / `Sensors.ShowOnHud` in `BepInEx/config/com.ryantogo.jointfires.cfg`.
 
 ## Requirements
 
