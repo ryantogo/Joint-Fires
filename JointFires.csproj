@@ -1,0 +1,86 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>JointFires</AssemblyName>
+    <RootNamespace>JointFires</RootNamespace>
+    <Version>0.0.1</Version>
+    <Nullable>disable</Nullable>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- Compile against the game's own Unity/Mono framework assemblies (FrameworkPathOverride
+         below), not the .NET Framework reference assemblies: game APIs use types such as
+         ReadOnlySpan that only Unity's mscorlib provides. -->
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <ImplicitlyExpandNETStandardFacades>false</ImplicitlyExpandNETStandardFacades>
+  </PropertyGroup>
+
+  <!-- Override on the command line or in GameDir.props.user: dotnet build -p:GameDir="D:\Steam\...\Nuclear Option" -->
+  <Import Project="GameDir.props.user" Condition="Exists('GameDir.props.user')" />
+  <PropertyGroup>
+    <GameDir Condition="'$(GameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Nuclear Option</GameDir>
+    <ManagedDir>$(GameDir)\NuclearOption_Data\Managed</ManagedDir>
+    <BepInExDir>$(GameDir)\BepInEx</BepInExDir>
+    <FrameworkPathOverride>$(ManagedDir)</FrameworkPathOverride>
+    <DeployToGame Condition="'$(DeployToGame)' == ''">true</DeployToGame>
+    <!-- EW-25 Medusa Multi-Crew (hard dependency), as NOMM installs it: enabled or disabled. -->
+    <MultiCrewDll Condition="'$(MultiCrewDll)' == '' And Exists('$(BepInExDir)\plugins\com.ryantogo.medusamulticrew\MedusaMultiCrew.dll')">$(BepInExDir)\plugins\com.ryantogo.medusamulticrew\MedusaMultiCrew.dll</MultiCrewDll>
+    <MultiCrewDll Condition="'$(MultiCrewDll)' == ''">$(BepInExDir)\disabledPlugins\com.ryantogo.medusamulticrew\MedusaMultiCrew.dll</MultiCrewDll>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="netstandard" HintPath="$(ManagedDir)\netstandard.dll" Private="false" />
+    <Reference Include="System" HintPath="$(ManagedDir)\System.dll" Private="false" />
+    <Reference Include="System.Core" HintPath="$(ManagedDir)\System.Core.dll" Private="false" />
+    <Reference Include="BepInEx" HintPath="$(BepInExDir)\core\BepInEx.dll" Private="false" />
+    <Reference Include="0Harmony" HintPath="$(BepInExDir)\core\0Harmony.dll" Private="false" />
+    <Reference Include="MedusaMultiCrew" HintPath="$(MultiCrewDll)" Private="false" />
+    <Reference Include="Assembly-CSharp" HintPath="$(ManagedDir)\Assembly-CSharp.dll" Private="false" />
+    <Reference Include="Mirage" HintPath="$(ManagedDir)\Mirage.dll" Private="false" />
+    <Reference Include="Mirage.SocketLayer" HintPath="$(ManagedDir)\Mirage.SocketLayer.dll" Private="false" />
+    <Reference Include="Rewired_Core" HintPath="$(ManagedDir)\Rewired_Core.dll" Private="false" />
+    <Reference Include="UniTask" HintPath="$(ManagedDir)\UniTask.dll" Private="false" />
+    <Reference Include="UnityEngine" HintPath="$(ManagedDir)\UnityEngine.dll" Private="false" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(ManagedDir)\UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="UnityEngine.PhysicsModule" HintPath="$(ManagedDir)\UnityEngine.PhysicsModule.dll" Private="false" />
+    <Reference Include="UnityEngine.IMGUIModule" HintPath="$(ManagedDir)\UnityEngine.IMGUIModule.dll" Private="false" />
+    <Reference Include="UnityEngine.TextRenderingModule" HintPath="$(ManagedDir)\UnityEngine.TextRenderingModule.dll" Private="false" />
+    <Reference Include="UnityEngine.UI" HintPath="$(ManagedDir)\UnityEngine.UI.dll" Private="false" />
+    <Reference Include="UnityEngine.InputLegacyModule" HintPath="$(ManagedDir)\UnityEngine.InputLegacyModule.dll" Private="false" />
+  </ItemGroup>
+
+  <!-- Deploy in NOMM's layout (plugins/<id>/ + meta.json) so the mod manager lists it and can enable/disable it.
+       If NOMM has the mod disabled, update it in disabledPlugins instead of silently re-enabling it. -->
+  <PropertyGroup>
+    <ModId>com.ryantogo.jointfires</ModId>
+    <ModGameVersion>0.34.2</ModGameVersion>
+    <ModDeployDir Condition="Exists('$(BepInExDir)\disabledPlugins\$(ModId)')">$(BepInExDir)\disabledPlugins\$(ModId)</ModDeployDir>
+    <ModDeployDir Condition="'$(ModDeployDir)' == ''">$(BepInExDir)\plugins\$(ModId)</ModDeployDir>
+  </PropertyGroup>
+
+  <Target Name="DeployPlugin" AfterTargets="Build" Condition="'$(DeployToGame)' == 'true' And Exists('$(BepInExDir)')">
+    <PropertyGroup>
+      <ModMetaJson>{
+    "id": "$(ModId)",
+    "artifact": {
+        "fileName": "$(TargetFileName)",
+        "version": "$(Version)",
+        "category": "release",
+        "type": "plugin",
+        "gameVersion": "$(ModGameVersion)",
+        "downloadUrl": "https://github.com/ryantogo/Joint-Fires/releases/download/$(Version)/$(TargetFileName)",
+        "hash": null,
+        "extends": null,
+        "dependencies": [],
+        "incompatibilities": []
+    }
+}</ModMetaJson>
+    </PropertyGroup>
+    <MakeDir Directories="$(ModDeployDir)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModDeployDir)" />
+    <WriteLinesToFile File="$(ModDeployDir)\meta.json" Lines="$(ModMetaJson)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <Message Importance="high" Text="Deployed $(TargetFileName) to $(ModDeployDir)" />
+  </Target>
+
+</Project>
