@@ -1,40 +1,29 @@
 # Joint Fires — Plan
 
 ## Context
-Joint Fires is a larger mod built around the EW-25 Medusa Multi-Crew mod (MC, 0.4.2, repo `ryantogo/EW-25-Medusa-MC`). It adds:
-1. **Datalink:** realtime waypoints and retargeting for in-flight guided weapons. A Medusa acts as a C2 relay, keeping friendly players' and AI's munitions guided without line of sight (LOS).
-2. **Sensor attribution:** a target selected on the map, or in the cockpit, shows which friendly sensors are detecting it (or last detected it).
-3. **Strike mission generation:** a crewed Medusa plans a time-on-target (TOT) strike using friendly AI assets.
-4. **Server whitelist:** controls who can take MC seats and who can plan strikes.
+Joint Fires (JF) adds depth to Nuclear Option's tactical battlespace. It is a **standalone mod**: it works in single player, co-op and multiplayer without any other mod.
+1. **Sensor attribution:** a target selected on the map, or in the cockpit, shows which friendly sensors are detecting it (or last detected it).
+2. **Strike missions:** plan a time-on-target (TOT) strike with friendly AI ships and missile launchers.
+3. **Datalink:** realtime waypoints and retargeting for in-flight guided weapons. A Medusa acts as a C2 relay, keeping friendly munitions guided without line of sight (LOS).
+4. **Jamming pods:** +25% range (host setting).
 
 The user decided:
 - **Datalink is additive.** Vanilla guidance is unchanged. The Medusa adds SARH relay, and in-flight retargeting or waypoints need a link.
-- **Strike v1 tasks launchers and artillery first.** AI aircraft come later.
+- **Strike v1 tasks ships and missile launchers.** Guns, artillery and AI aircraft come later.
+- **Strike planning is host-only by default.** The host can promote players; promotions are a whitelist file.
 
-## Decision: separate mod, with MC as a hard dependency (not one merged mod)
-- **MC stays small and shippable.** It is close to playable and will be submitted to NOMNOM first. Joint Fires is several times bigger and touches different game systems (missiles, sensors, AI, map UI). Merging would hold MC's release and stability hostage to unfinished JF work.
-- **The overlap is narrow.** JF needs only MC's crew roster (who is in which Medusa seat) and a join-policy hook for the whitelist. Everything else is new.
-- **Some JF features don't need a crew.** Sensor attribution, datalink and the solo Medusa relay work for anyone. Strike planning is the only part that needs MC's crew roster.
-- **Installation stays simple.** NOMM `meta.json` supports `dependencies`, so installing Joint Fires pulls in MC. The BepInEx `[BepInDependency("com.ryantogo.medusamulticrew")]` attribute (hard) makes the load order and a missing MC explicit.
-- **Rejected options:**
-  - A merged mod: it couples the release cycles.
-  - A soft dependency: it adds an extra code path for little gain.
-  - A shared core library: it means three packages to version.
+## Decision (2026-10-28): standalone Joint Fires + a separate "JF Multicrew" compatibility mod
+- **Joint Fires has no Multi-Crew (MC) dependency.** Sensors, datalink and strikes don't need crew seats, so single-player and co-op players get them without MC.
+- **JF Multicrew** (a later, small mod; needs both MC and JF) adds the crew-specific pieces:
+  - Medusa crews (pilot or WSOs) can plan strikes.
+  - A whitelist for MC crew seats, through MC's join-policy hook (`MultiCrewApi.AddJoinPolicy`, MC 0.5.0).
+  - Anything else tied to crew seats.
+- **Jamming pod boost:** MC 0.5.1+ applies it. JF applies the same patch only when MC 0.5.1+ isn't installed (soft dependency, checked at load), so it never stacks.
 
 ## Architecture
-- **Repo and build:** new repo `ryantogo/Joint-Fires`, with the same toolchain as MC: net472, BepInEx 5 and Harmony, compiling against the game's Managed folder through `FrameworkPathOverride`. The build references `MedusaMultiCrew.dll` from the game's plugins folder. GUID `com.ryantogo.jointfires`.
-- **Networking:** JF copies MC's pattern (`src/Net/CrewNet.cs`): its own hello and ack with a protocol number, a modded-peer set, hand-written `Writer<T>`/`Reader<T>`, and targeted sends only. Unknown message IDs cost unmodded peers `SetError(60)`.
-- **The server is the authority** for everything. Missiles, AI and detection all run on the server only. Clients send requests; the server validates them (faction, whitelist, link, ownership or crew) and applies them.
-
-### MC changes needed (MC 0.5.0, small)
-- **A public `MedusaMultiCrew.Api` static class:**
-  - `TryGetCrew(Aircraft, out players per seat)`.
-  - `CrewChanged` event (server and client).
-  - `LocalSeat` / `LocalCrewAircraft`.
-  - `IsMultiCrewAircraft`.
-- **A join-policy hook:** `CrewServer` calls registered `Func<INetworkPlayer, Aircraft, byte seat, bool>` validators in `CheckJoin`.
-  - Adds a new `JoinResult.NotAllowed` value, which bumps MC's protocol.
-- **No behaviour changes otherwise.**
+- **Repo and build:** `ryantogo/Joint-Fires`, with the same toolchain as MC: net472, BepInEx 5 and Harmony, compiling against the game's Managed folder through `FrameworkPathOverride`. GUID `com.ryantogo.jointfires`.
+- **Networking:** MC's pattern (`src/Net/JfNet.cs`): its own hello and ack with a protocol number, a modded-peer set, hand-written `Writer<T>`/`Reader<T>`, and targeted sends only. Unknown message IDs cost unmodded peers `SetError(60)`.
+- **The server is the authority** for everything. Missiles, AI and detection all run on the server only. Clients send requests; the server validates them (faction, permission, link, ownership) and applies them.
 
 ## Features
 
@@ -52,18 +41,12 @@ The user decided:
   - Example lines: "Radar: EW-25 Medusa (PlayerX) · Visual: AFV Y".
 - **Note:** the game never stores who detected a target. `TrackingInfo` holds only position and time, so this capture is new data.
 
-### 2. Server whitelist
-- **List file:** `BepInEx/config/jointfires_whitelist.txt`, read with the game's `NuclearOption.DedicatedServer.AllowBanList.Load` format (one SteamID64 per line, optional `// note`).
-- **Config switches:**
-  - `Whitelist.Enabled`.
-  - `Whitelist.RestrictCrewSeats` (through the MC join hook).
-  - `Whitelist.RestrictStrikePlanning`.
-  - `Whitelist.RestrictDatalinkCommands`.
-  - The host always passes.
-- **Identity:** the server reads `Player.SteamID` (`BasePlayer`, set from auth data). On a non-Steam transport the ID is 0: deny when the whitelist is on, and log a warning.
-- **Reload:**
-  - A `ServerRemoteCommands` command `jointfires-whitelist-reload` on dedicated servers.
-  - A hotkey for listen-server hosts.
+### 2. Strike planner permissions
+- The host can always plan. Other players need a promotion from the host (planner window, "Strike planners (host)").
+- Promotions are saved to `BepInEx/config/com.ryantogo.jointfires.strike_planners.txt`: one SteamID64 per line, optional `// note`, the game's ban-list format. Hand-editable on a dedicated server.
+- `Strike.AllowPromotedPlanners` (host) turns promotions off.
+- Identity is `Player.SteamID`, which is 0 off the Steam transport, so promotions only work on Steam.
+- The MC crew-seat whitelist moves to JF Multicrew.
 
 ### 3. Datalink network and Medusa relay (additive)
 - **Link model:**
@@ -93,50 +76,48 @@ The user decided:
   Other seekers are not supported: IR and ARM are fire-and-forget, laser is faction-wide already, and bombs.
 - **Multi-waypoint routes:** a JF-side queue per missile that feeds `aimPos` the next point when the current one is reached. This is v2.
 
-### 5. Strike mission generation (v1: launchers and artillery)
-- **Who:** the crew of a Medusa (MC roster, at least one WSO seated, or the pilot), if whitelisted.
-- **UI:** an IMGUI planner on the map, opened with a key while crewing.
-  - Pick a tracked target and a TOT, either an absolute time or "now + N s".
-  - The server returns the available assets with their flight time; the crew ticks the ones to use and confirms.
-- **Asset discovery (server):** friendly `FireControl` batteries (ships, strategic and SAM launchers in strike mode), `Turret`-based artillery and launchers, and `MobileArtilleryAI`. Each must have a weapon that can reach the target (`WeaponInfo.targetRequirements.maxRange`, ammo, `Ready()`).
+### 5. Strike missions (v1: ships and missile launchers), 0.2.0
+- **Who:** the host, plus promoted players (feature 2). JF Multicrew will add Medusa crews.
+- **UI:** `StrikePlannerWindow` (IMGUI, `Strike.PlannerKey` F9). Use it with the map open, where the cursor is free.
+  - Target: the selected enemy map icon, else the HUD's primary target. It must be tracked by your faction.
+  - "Find launchers" asks the server. It replies with each usable station: name, weapon, ready rounds and estimated flight time.
+  - Choose rounds per launcher and the impact time (earliest is computed), then launch.
+  - The missions list shows state, launched/planned, a countdown, and an Abort button.
+- **Asset discovery (server, `StrikeLaunchers`):**
+  - Every `Turret` of the planner's faction whose station holds `MissileLauncher` weapons with ammo.
+  - The firing unit is the turret's `FireControl` unit (batteries, ships) or the turret's own unit.
+  - Excluded: non-missile weapons, troops, cargo, jammers, energy weapons, nuclear missiles unless `Strike.AllowNuclearWeapons`, and strategic launchers below the escalation threshold unless `Strike.IgnoreEscalation`.
+  - Suitability: `targetRequirements` (range, target speed and altitude) plus the game's own `WeaponStation.CalcOpportunityThreat`.
 - **Flight time:**
-  - Shells: `Kinematics.TrajectorySim` / `TargetCalc.TargetLeadTime`.
-  - Missiles: `range / (0.7 * maxSpeed)`, the game's own estimate from `AimSolver`, refined with `Missile.CalcRange`.
-  - Ballistic: `Kinematics.FallTime`.
-  - `ArtilleryCalc.GetElevation` is broken in the game, so it's not used.
-- **Execute (server):** launch time = TOT − flight time.
-  - `FireControl`: fill the private `queuedAttacks` and call `LaunchSalvo` at the launch time.
-  - `Turret`: `SetTarget(targetId, station)`, with a `FixedUpdate` fire gate (Harmony prefix) until the launch time.
-  - While a unit is tasked, suppress its own retargeting (prefix `ChooseTarget` / `HQTargetAssessment`). Release it afterwards or on abort.
-  - The target must stay in the tracking database, which the Medusa provides.
-- **Feedback:** mission status goes to the crew: assets launching, time to impact, and the result from `Unit.onDisableUnit`.
+  - Starts from the game's estimate: range / (0.7 x top speed), as in `AimSolver`.
+  - Calibrated per weapon from strike missiles that end within 300 m of the target. The factor is clamped and smoothed.
+- **Execute (server, `StrikeServer`):**
+  - Each round launches at TOT - flight time. A station's rounds are centred on the TOT at its fire interval.
+  - Rounds fire with `WeaponStation.Fire(owner, target)`, the same call `FireControl.LaunchSalvo` uses.
+  - Launch trucks are raised with `GroundVehicle.RpcDeployFireControl` 20 s before their first round and stowed afterwards.
+  - A round that can't fire within 10 s of its time is dropped.
+  - Reserved launchers: `Turret.ChooseTarget` / `Turret.FixedUpdate` / `FireControl.HQTargetAssessment` are blocked until the launches finish.
+- **Outcomes:** Complete; TargetDestroyed; Aborted (by the planner or the host, or the target destroyed before launch); Failed (nothing could fire).
+- **v2:**
+  - Guns and artillery (they need aiming and ballistic flight times).
+  - AI aircraft: prefix `AIPilotCombatModes.AssessHQTargets` / `CombatAI.ChooseHQTarget` to force the target, and gate `Pilot.Fire` to the release window.
   - Map markers on the target and launchers.
-  - Abort and retask buttons.
-- **Rules:** respect `MissionManager.currentEscalation` against `strategicThreshold` for strategic weapons (config-overridable by the host).
-- **v2: AI aircraft.**
-  - Prefix `AIPilotCombatModes.AssessHQTargets` / `CombatAI.ChooseHQTarget` to force the target.
-  - Gate `Pilot.Fire` to the release window.
-  - Route timing from the distance and the aircraft's cruise speed.
 
 ## Phases
-0. ✅ **MC 0.5.0 API and join hook** (`MultiCrewApi`), then this repo's skeleton and the JF hello/net layer (`src/Net/JfNet.cs`).
-1. ✅ **Sensor attribution** (code done in 0.1.0, untested in-game). `src/Sensors/`: capture patches, `SensorServer` table and query, `SensorClient` cache and display patches. Remote players' laser/RWR/MAW reports show as "Reported", since the host can't see which of their sensors sent them.
-2. **Whitelist.** Covers MC seats, plus switches for later features.
-3. **Datalink link model,** the map link state, and SARH relay.
+0. Done: JF skeleton and the hello/net layer. MC 0.5.0 `MultiCrewApi` (for JF Multicrew).
+1. Done: **Sensor attribution** (0.1.0, untested in-game). `src/Sensors/`: capture patches, the `SensorServer` table and query, the `SensorClient` cache and display patches. Remote players' laser/RWR/MAW reports show as "Reported", because the host can't see which of their sensors sent them.
+2. Done: **Standalone + strike missions v1 + jamming boost** (0.2.0, untested in-game). The MC dependency is removed; `src/Strike/` and `src/Jamming/` are added. MC 0.5.1 carries the same jamming boost.
+3. **Datalink link model**, the map link state, and SARH relay.
 4. **Waypoints and retargeting.**
-5. **Strike planner v1:** launchers and artillery.
-6. **Strike planner v2:** AI aircraft.
-7. **Release and NOMNOM:** MC first, then JF with `dependencies: [com.ryantogo.medusamulticrew]`.
+5. **Strike v2:** guns, artillery and AI aircraft.
+6. **JF Multicrew** compatibility mod: Medusa crew planning and the crew-seat whitelist. Needs a new repo, which the user creates.
+7. **Release and NOMNOM:** MC, then JF, then JF Multicrew.
 
 Each phase ends with a GitHub pre-release with full release notes, as for MC.
 
 ## Critical files
-- **MC:**
-  - `src/Crew/CrewServer.cs`: the join validators, `CheckJoin`.
-  - `src/Crew/CrewClient.cs`.
-  - `src/Net/CrewMessages.cs`: `JoinResult.NotAllowed`.
-  - New `src/Api/MultiCrewApi.cs`.
-  - `src/Net/CrewNet.cs`: the template for the JF net layer.
+- **JF:** `src/Net/` (messages, serializers, `JfNet`), `src/Sensors/`, `src/Strike/`, `src/Jamming/`.
+- **MC (for JF Multicrew):** `src/Api/MultiCrewApi.cs`; `src/Patches/JammingPodRangePatch.cs`.
 - **Game hook points** (in the game's decompiled `Assembly-CSharp`; never committed here):
   - Sensors: `TargetDetector.cs`, `FactionHQ.cs`, `TrackingInfo.cs`.
   - Map and HUD: `UnitMapIcon.cs`, `TargetMarker.cs`, `DynamicMap.cs`, `CombatHUD.cs`.
@@ -144,6 +125,8 @@ Each phase ends with a GitHub pre-release with full release notes, as for MC.
   - AI and launchers: `FireControl.cs`, `Turret.cs`, `MobileArtilleryAI.cs`, `AIPilotCombatModes.cs`, `CombatAI.cs`.
   - Flight time: `Kinematics.cs`, `AimSolver.cs`.
   - Server: `NuclearOption.DedicatedServer/AllowBanList.cs`, `ServerRemoteCommands`, `BasePlayer.cs`.
+  - Strikes: `WeaponStation.cs`, `MissileLauncher.cs`, `Spawner.cs`, `GroundVehicle.RpcDeployFireControl`, `MissionManager` escalation.
+  - Jamming: `JammingPod.cs` (`rangeFalloff`).
 
 ## Verification
 - **Each phase:**
@@ -151,17 +134,17 @@ Each phase ends with a GitHub pre-release with full release notes, as for MC.
   - Logs prefixed per feature: `[Sensors]`, `[Datalink]`, `[Strike]`, `[Whitelist]`.
   - An unmodded peer gets no unknown messages.
 - **Sensors:** a Medusa radar plus a ground spotter on one target; both appear on hover and select; they expire about 4 s after LOS is lost.
-- **Whitelist:** a non-listed client gets "not allowed" on F6 and in the strike planner; after adding them and reloading, they're allowed.
+- **Planner permission:** a non-promoted client sees "Only the host and players the host promoted can plan strikes"; after the host promotes them, they can plan.
 - **Datalink:**
   - Fire a SARH missile, then turn the launcher away while a Medusa tracks the target. The missile keeps guiding.
   - Without the Medusa it goes stale, as in vanilla.
   - Retarget a cruise missile mid-flight, and set a waypoint.
   - An unlinked munition rejects commands.
 - **Strike:** plan a TOT with two launchers at different distances; impacts land within ±2 s of the TOT; the strike aborts cleanly if the target is lost.
-- **Regression:** with JF installed and unused, vanilla AI, missiles and MC behave as before.
+- **Regression:** with JF installed and unused, vanilla AI and missiles behave as before, apart from the jamming pod range.
 
 ## Risks
 - **Private-field coupling** (seekers, `FireControl.queuedAttacks`, AI modes) breaks on game updates. Pin the game version, keep patches narrow, and fail closed with a log line.
 - **Flight-time error** for missiles that climb or loft: calibrate per weapon in testing, and allow a per-weapon offset table.
 - **Balance:** SARH relay and remote retargeting are strong. Keep everything behind host config switches.
-- **The whitelist depends on the Steam transport** for SteamIDs.
+- **Promotions depend on the Steam transport** for SteamIDs.

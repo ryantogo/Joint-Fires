@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using JointFires.Sensors;
+using JointFires.Strike;
 using Mirage;
 using NuclearOption.Networking;
 using UnityEngine;
@@ -15,8 +16,8 @@ namespace JointFires.Net
     internal static class JfNet
     {
         // Bump Protocol on any wire change. JfHelloMsg / JfHelloAckMsg layouts must never change.
-        public const byte Protocol = 1;
-        public const ushort Version = 1;
+        public const byte Protocol = 2;
+        public const ushort Version = 2;
 
         private static NetworkManagerNuclearOption manager;
         private static float nextManagerSearch;
@@ -52,6 +53,7 @@ namespace JointFires.Net
                     RegisterServer(server);
                 }
                 SensorServer.Tick();
+                StrikeServer.Tick();
             }
             else if (serverHandler != null)
             {
@@ -86,6 +88,7 @@ namespace JointFires.Net
             serverHandler = null;
             modded.Clear();
             SensorServer.Reset();
+            StrikeServer.Reset();
         }
 
         private static void ResetClient()
@@ -94,6 +97,7 @@ namespace JointFires.Net
             helloSent = false;
             ServerHasMod = false;
             SensorClient.Reset();
+            StrikeClient.Reset();
         }
 
         // ---- client -> server ----
@@ -154,6 +158,7 @@ namespace JointFires.Net
             }
             modded.Add(player);
             Plugin.Log.LogInfo($"[Server] {player} has Joint Fires (v{msg.Version})");
+            StrikeServer.OnPeerReady(player);
         }
 
         private static void OnHelloAck(INetworkPlayer _, JfHelloAckMsg msg)
@@ -192,6 +197,9 @@ namespace JointFires.Net
 
             serverHandler.RegisterHandler<JfHelloMsg>(Guard<JfHelloMsg>(OnHello), false);
             serverHandler.RegisterHandler<SensorQueryMsg>(Guard<SensorQueryMsg>(SensorServer.OnQuery), false);
+            serverHandler.RegisterHandler<StrikeAssetQueryMsg>(Guard<StrikeAssetQueryMsg>(StrikeServer.OnAssetQuery), false);
+            serverHandler.RegisterHandler<StrikeOrderMsg>(Guard<StrikeOrderMsg>(StrikeServer.OnOrder), false);
+            serverHandler.RegisterHandler<StrikeAbortMsg>(Guard<StrikeAbortMsg>(StrikeServer.OnAbort), false);
 
             // The server object lives across sessions, so hook its disconnect event only once.
             if (!ReferenceEquals(disconnectHookedServer, server))
@@ -210,6 +218,9 @@ namespace JointFires.Net
 
             clientHandler.RegisterHandler<JfHelloAckMsg>(Guard<JfHelloAckMsg>(OnHelloAck), false);
             clientHandler.RegisterHandler<SensorReportMsg>(Guard<SensorReportMsg>(SensorClient.OnReport), false);
+            clientHandler.RegisterHandler<StrikePermissionMsg>(Guard<StrikePermissionMsg>(StrikeClient.OnPermission), false);
+            clientHandler.RegisterHandler<StrikeAssetsMsg>(Guard<StrikeAssetsMsg>(StrikeClient.OnAssets), false);
+            clientHandler.RegisterHandler<StrikeStatusMsg>(Guard<StrikeStatusMsg>(StrikeClient.OnStatus), false);
             Plugin.Log.LogInfo("[Net] Client handlers registered");
         }
 
@@ -238,6 +249,7 @@ namespace JointFires.Net
             {
                 modded.Remove(player);
                 SensorServer.Forget(player);
+                StrikeServer.OnDisconnected(player);
             }
         }
 
